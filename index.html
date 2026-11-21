@@ -20,30 +20,8 @@
     <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   
- <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "8600549d-6bc4-4a88-a729-070758622d2f",
-serviceWorkerPath: location.pathname.replace(/\/[^/]*$/, "/") + "OneSignalSDKWorker.js",
-      serviceWorkerParam: { scope: location.pathname.replace(/\/[^/]*$/, "/") },
-      notifyButton: { enable: false }
-    });
-
-    // Ne pas afficher de notif système si l'app est déjà ouverte à l'écran
-    OneSignal.Notifications.addEventListener("foregroundWillDisplay", (e) => {
-      if (document.visibilityState === "visible") e.preventDefault();
-    });
-  });
-
-  // Petit utilitaire pour parler au SDK en toute sécurité
-  function avecOneSignal(fn) {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(fn);
-  }
-
-  // Vrai seulement si l'app tourne depuis l'icône de l'écran d'accueil
+ <script>
+  // Vrai seulement si l'app tourne depuis l'icône de l'écran d'accueil (PWA)
   function appEstInstallee() {
     return window.navigator.standalone === true ||
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -1023,6 +1001,10 @@ serviceWorkerPath: location.pathname.replace(/\/[^/]*$/, "/") + "OneSignalSDKWor
     text-align: center;
     padding: 0 20px;
 }
+
+
+.settings-header { display: flex; align-items: center; gap: 12px; }
+.settings-header h3 { flex: 1; margin: 0; }
 
 .settings-page {
     position: fixed;
@@ -5255,8 +5237,8 @@ input, textarea {
 </div>
 <div id="accueil-contacts" style="display:none">
     <div class="hub-top">
-        <div class="hub-av" id="accueil-mon-avatar">?</div>
-        <div class="hub-top-txt">
+        <div class="hub-av" id="accueil-mon-avatar" onclick="ouvrirPageCompte()" title="Mon compte" style="cursor:pointer;">?</div>
+        <div class="hub-top-txt" onclick="ouvrirPageCompte()" style="cursor:pointer;" title="Mon compte">
             <div class="hub-kicker">Discussions</div>
             <div class="hub-nom" id="accueil-mon-nom">Mon alias</div>
         </div>
@@ -5824,6 +5806,50 @@ input, textarea {
         
         <!-- Modal Canvas --> 
      
+
+<!-- ========== PAGE COMPTE (profil de l'utilisateur connecté) ========== -->
+<div class="settings-page" id="compte-page" style="display:none;">
+    <div class="settings-header">
+        <i class="fa-solid fa-arrow-left" onclick="fermerPageCompte()" title="Retour"></i>
+        <h3>Compte</h3>
+        <i class="fa-solid fa-gear" onclick="openSettingsPage()" title="Paramètres" style="cursor:pointer;margin-left:auto;"></i>
+    </div>
+    <div class="settings-content">
+        <div class="settings-section" style="text-align:center; padding: 24px 16px;">
+            <div class="profile-avatar" id="compte-avatar" style="width:88px;height:88px;margin:0 auto 12px;font-size:1.8rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(45deg,#a800ff,#0076ff);color:#fff;">?</div>
+            <div class="profile-name" id="compte-nom" style="font-size:1.25rem;font-weight:700;">—</div>
+            <div class="profile-username" id="compte-alias" style="color:var(--text-muted);margin-top:4px;">@—</div>
+            <div id="compte-email" style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">—</div>
+        </div>
+        <div class="settings-section" style="padding:0;overflow:hidden;">
+            <div class="settings-link-row" onclick="openSettingsPage()">
+                <div class="settings-link-icon" style="background:linear-gradient(45deg,#a800ff,#0076ff);"><i class="fa-solid fa-gear"></i></div>
+                <div class="settings-link-text">
+                    <div class="settings-link-title">Paramètres</div>
+                    <div class="settings-link-desc">Apparence, notifications, mode couple…</div>
+                </div>
+                <i class="fa-solid fa-chevron-right settings-link-arrow"></i>
+            </div>
+            <div class="settings-link-row" onclick="demanderPermissionNotifications()">
+                <div class="settings-link-icon" style="background:linear-gradient(45deg,#f59e0b,#ef4444);"><i class="fa-solid fa-bell"></i></div>
+                <div class="settings-link-text">
+                    <div class="settings-link-title">Notifications push</div>
+                    <div class="settings-link-desc">Firebase Cloud Messaging</div>
+                </div>
+                <i class="fa-solid fa-chevron-right settings-link-arrow"></i>
+            </div>
+            <div class="settings-link-row" onclick="deconnexionCompte()">
+                <div class="settings-link-icon" style="background:#ef4444;"><i class="fa-solid fa-right-from-bracket"></i></div>
+                <div class="settings-link-text">
+                    <div class="settings-link-title">Déconnexion</div>
+                    <div class="settings-link-desc">Se déconnecter de ce compte</div>
+                </div>
+                <i class="fa-solid fa-chevron-right settings-link-arrow"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
         <!-- Page Paramètres -->
 <div class="settings-page" id="settings-page">
     <div class="settings-header">
@@ -6413,6 +6439,50 @@ const firebaseConfig = {
 // ========== CONFIGURATION FIREBASE ==========
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+// ========== FIREBASE CLOUD MESSAGING (Push) ==========
+// Console → Project settings → Cloud Messaging → Web Push certificates → Generate key pair
+const FIREBASE_VAPID_KEY = "BNXkGEbUhZKf1Q3T9mz2_zcDxIGyhxg8jqq66F7eLbOlghGNwCYVs0raHYpQLR6_ZTRRUpBlYx4HdWolFE1AaX0";
+let messaging = null;
+try {
+    if (firebase.messaging && firebase.messaging.isSupported && firebase.messaging.isSupported()) {
+        messaging = firebase.messaging();
+    }
+} catch (e) { console.warn('FCM non supporté', e); }
+
+async function enregistrerServiceWorkerFCM() {
+    if (!('serviceWorker' in navigator)) return null;
+    const swCode = `
+        importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+        importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+        firebase.initializeApp({"apiKey": "AIzaSyClnkqZC-Jt_lD51-zlGZqmZp7LUI8uz_M", "authDomain": "messagerie-74782.firebaseapp.com", "projectId": "messagerie-74782", "storageBucket": "messagerie-74782.firebasestorage.app", "messagingSenderId": "847192067277", "appId": "1:847192067277:web:01772fbd95be50c8e16d84"});
+        const messaging = firebase.messaging();
+        messaging.onBackgroundMessage(function(payload) {
+            const title = (payload.notification && payload.notification.title) || 'Nouveau message';
+            const options = {
+                body: (payload.notification && payload.notification.body) || '',
+                icon: '/icon-192.png',
+                data: payload.data || {}
+            };
+            self.registration.showNotification(title, options);
+        });
+        self.addEventListener('notificationclick', function(event) {
+            event.notification.close();
+            const url = (event.notification.data && event.notification.data.url) || '/';
+            event.waitUntil(clients.openWindow(url));
+        });
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    try {
+        return await navigator.serviceWorker.register(swUrl, { scope: './' });
+    } catch (e) {
+        console.warn('SW blob failed', e);
+        try { return await navigator.serviceWorker.register('firebase-messaging-sw.js'); }
+        catch (e2) { console.error('SW FCM impossible', e2); return null; }
+    }
+}
+
       
       // ========== CONFIGURATION SUPRABASE (STOCKAGE PRIVÉ) ==========
 const SUPABASE_URL = "https://noilukehswntfgcsusoe.supabase.co";  // Remplace par ton URL
@@ -7648,7 +7718,7 @@ async function sendTelegramNotification(senderId, msgId) {
 
 // ========== NOTIFICATION PUSH DANS L'APP ==========
 async function notifierDansApp(expediteurNom) {
-    // Les notifications arrivent désormais par OneSignal (voir envoyerPush).
+    // Les notifications passent par Firebase Cloud Messaging (voir envoyerPush / push_queue).
     // Cette fonction est conservée vide pour ne pas casser les appels existants.
 }
 
@@ -7666,93 +7736,59 @@ async function notifierDansApp(expediteurNom) {
 // Pour tester immédiatement (optionnel) :
 // activerLesNotifications();
         let CHAT_ID = "chat_ida_aidara";
-      // ===== PUSH ONESIGNAL =====
-const ONESIGNAL_APP_ID = "8600549d-6bc4-4a88-a729-070758622d2f";
-const ONESIGNAL_REST_KEY = "os_v2_app_qyafjhllyrfirjzja4dvqyrnf4dcoo5xfbku5vnyvpsyq5toi6jehvvmshw7wtyhiurmhjj2aouqibpwig256qxsh7xjxdrq2qjtnfy"; // ← remplace par ta clé de l'étape 1
-  
-      
-      async function associerAbonnement() {
-  if (!currentUser) {
-    console.warn("Pas d'utilisateur connecté, impossible d'associer l'abonnement.");
-    return;
-  }
-  try {
-    // On lie l'utilisateur Firebase à OneSignal
-    await OneSignal.login(currentUser.id);
-    
-    // On récupère l'identifiant d'abonnement généré par OneSignal
-    const subId = OneSignal.User.PushSubscription.id;
-    
-    if (subId) {
-      // On sauvegarde cet identifiant dans le document de l'utilisateur dans Firestore
-      await db.collection("users").doc(currentUser.id).set({
-        onesignalId: subId,
-        pushActif: true
-      }, { merge: true });
-      console.log("Abonnement OneSignal enregistré dans Firestore :", subId);
-    } else {
-      console.warn("OneSignal n'a pas encore généré d'identifiant d'abonnement.");
-    }
-  } catch (e) {
-    console.error("Erreur lors de l'association de l'abonnement :", e);
+      // ===== PUSH FIREBASE (OneSignal retiré) =====
+async function associerAbonnement() {
+  // compat: redirige vers FCM
+  if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) {
+    return associerAbonnementPush(currentUser.id);
   }
 }
-      
-      
-const PUSH_ENDPOINT = "https://rvgbiasvnnisfccxyrdj.supabase.co/functions/v1/send-push";
 
+      
+      
+// Envoi push via FCM : on écrit une demande dans Firestore.
+// Une Cloud Function (ou ton backend) lit "push_queue" et appelle l'API FCM.
+// Voir instructions dans le README / message Grok.
 async function envoyerPush(destinataireId, texte) {
   try { if (typeof memoriserEchange === 'function') memoriserEchange(texte); } catch (e) {}
   if (!destinataireId) return;
   try {
     const doc = await db.collection('users').doc(destinataireId).get();
-    const subId = doc.exists ? doc.data().onesignalId : null;
-    if (!subId) { console.warn("Push: aucun onesignalId pour", destinataireId); return; }
-
-    const rep = await fetch(PUSH_ENDPOINT, {
-      method: "POST",
-      keepalive: true,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer sb_publishable_TYlpx89JKqB1iicGi_9Ngw_-CstsPWm",
-        "apikey": "sb_publishable_TYlpx89JKqB1iicGi_9Ngw_-CstsPWm",
-      },
-      body: JSON.stringify({
-        subscriptionId: subId,
-        corps: (texte || "Nouveau message").slice(0, 120),
-        url: location.origin + location.pathname
-      })
-    });
-    const txt = await rep.text();
-    if (!rep.ok) console.error("Push refusé:", rep.status, txt);
-    else console.log("Push envoyé:", txt);
+    const data = doc.exists ? doc.data() : {};
+    const fcmToken = data.fcmToken || null;
+    if (!fcmToken) {
+      console.warn("Push: aucun fcmToken pour", destinataireId);
+      return;
+    }
+    const payload = {
+      to: destinataireId,
+      fcmToken: fcmToken,
+      title: (typeof currentUser !== 'undefined' && currentUser && currentUser.name) ? currentUser.name : 'Message',
+      body: (texte || 'Nouveau message').slice(0, 120),
+      url: location.origin + location.pathname,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      from: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null
+    };
+    await db.collection('push_queue').add(payload);
+    console.log('Push mis en file (push_queue) pour', destinataireId);
   } catch (e) { console.error("Erreur push:", e); }
 }
 
       
-      async function testerEnvoiPush() {
+async function testerEnvoiPush() {
   if (!currentUser || !targetUser) { alert("Connecte-toi d'abord"); return; }
-  if (!ONESIGNAL_REST_KEY || ONESIGNAL_REST_KEY === "COLLE_TA_CLE_REST_ICI") {
-    alert("La clé REST n'est pas remplie (constante ONESIGNAL_REST_KEY)");
-    return;
-  }
   const doc = await db.collection('users').doc(targetUser.id).get();
-  const subId = doc.exists ? doc.data().onesignalId : null;
-  if (!subId) {
-    alert("Aucun identifiant push enregistré pour " + targetUser.name + ".\n\n→ " + targetUser.name + " doit ouvrir l'app depuis SON icône, se connecter, puis Paramètres → Notifications → Activer.");
+  const fcmToken = doc.exists ? doc.data().fcmToken : null;
+  if (!fcmToken) {
+    alert("Aucun token FCM pour " + targetUser.name + ".\n\n→ Cette personne doit : Paramètres → Notifications → Activer (avec la clé VAPID configurée).");
     return;
   }
-  const rep = await fetch("https://api.onesignal.com/notifications", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Key " + ONESIGNAL_REST_KEY },
-    body: JSON.stringify({
-      app_id: ONESIGNAL_APP_ID,
-      include_subscription_ids: [subId],
-      headings: { fr: "Test", en: "Test" },
-      contents: { fr: "Si tu lis ça, l'envoi fonctionne", en: "ok" }
-    })
-  });
-  alert("HTTP " + rep.status + "\n\n" + (await rep.text()).slice(0, 300));
+  try {
+    await envoyerPush(targetUser.id, "🧪 Test notification Firebase");
+    alert("Demande de push ajoutée dans Firestore (collection push_queue).\n\nPour l'envoi réel hors app, déploie une Cloud Function qui lit push_queue et appelle FCM (voir instructions).");
+  } catch (e) {
+    alert("Erreur: " + (e.message || e));
+  }
 }
         // ========== ÉTAT DE L'APPLICATION ==========
         let currentUser = null; 
@@ -8083,61 +8119,74 @@ async function checkMessageDelivery(messageId) {
 }
 // ========== FONCTION POUR DEMANDER LES NOTIFICATIONS ==========
 async function demanderPermissionNotifications() {
-    if (!appEstInstallee()) {
-        alert("Sur iPhone : ouvre d'abord l'app depuis l'icône de l'écran d'accueil, puis appuie ici.");
-        return;
+    try {
+        if (!('Notification' in window)) {
+            showTempNotification('Notifications non supportées sur ce navigateur');
+            return;
+        }
+        // iOS : mieux en mode PWA installée
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && typeof appEstInstallee === 'function' && !appEstInstallee()) {
+            alert("Sur iPhone : ajoute d'abord l'app à l'écran d'accueil, ouvre-la depuis l'icône, puis active les notifications.");
+        }
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+            await associerAbonnementPush(currentUser ? currentUser.id : null);
+            if (typeof sauvegarderStatutPermission === 'function') sauvegarderStatutPermission('notif', 'granted');
+            if (typeof majStatutPermission === 'function') majStatutPermission('notif', 'granted');
+            showTempNotification('🔔 Notifications Firebase activées');
+        } else {
+            if (typeof sauvegarderStatutPermission === 'function') sauvegarderStatutPermission('notif', 'denied');
+            if (typeof majStatutPermission === 'function') majStatutPermission('notif', 'denied');
+            showTempNotification('❌ Notifications refusées');
+        }
+    } catch (e) {
+        console.error('Erreur permission push:', e);
+        showTempNotification('Erreur notifications: ' + (e.message || e));
     }
-    await new Promise((resolve) => avecOneSignal(async (OneSignal) => {
-        try {
-            if (!OneSignal.Notifications.permission) {
-                await OneSignal.Notifications.requestPermission();
-            }
-            if (OneSignal.Notifications.permission) {
-                await associerAbonnementPush(currentUser ? currentUser.id : null);
-                sauvegarderStatutPermission('notif', 'granted');
-                majStatutPermission('notif', 'granted');
-                showTempNotification("🔔 Notifications activées");
-            } else {
-                sauvegarderStatutPermission('notif', 'denied');
-                majStatutPermission('notif', 'denied');
-                showTempNotification("❌ Notifications refusées — supprime puis ré-ajoute l'icône pour redemander");
-            }
-        } catch (e) { console.error("Erreur permission push:", e); }
-        resolve();
-    }));
 }
 
-// Fonction pour enregistrer le token push
 async function associerAbonnementPush(userId) {
-  if (!userId) return;
-  await new Promise((resolve) => avecOneSignal(async (OneSignal) => {
+    if (!userId) return;
+    if (!messaging) {
+        console.warn('FCM messaging indisponible');
+        return;
+    }
+    if (!FIREBASE_VAPID_KEY || FIREBASE_VAPID_KEY === 'REMPLACE_PAR_TA_CLE_VAPID') {
+        console.warn('Colle ta clé VAPID (FIREBASE_VAPID_KEY) dans index.html — Project settings → Cloud Messaging → Web Push certificates');
+        showTempNotification('⚠️ Configure la clé VAPID Firebase (voir console)');
+        return;
+    }
     try {
-      if (!OneSignal.Notifications.permission) { resolve(); return; }
-      await OneSignal.login(userId);
-
-      const enregistrer = async () => {
-        const subId = OneSignal.User.PushSubscription.id;
-        if (!subId) return false;
-        await db.collection('users').doc(userId).set(
-          { onesignalId: subId, pushActif: true }, { merge: true });
-        console.log("Abonnement enregistré:", subId);
-        return true;
-      };
-
-      if (await enregistrer()) { resolve(); return; }
-
-      OneSignal.User.PushSubscription.addEventListener('change', async (e) => {
-        if (e.current && e.current.id) await enregistrer();
-      });
-
-      let essais = 0;
-      const minuteur = setInterval(async () => {
-        essais++;
-        if (await enregistrer() || essais > 20) clearInterval(minuteur);
-      }, 1000);
-    } catch (e) { console.error("Erreur abonnement push:", e); }
-    resolve();
-  }));
+        const reg = await enregistrerServiceWorkerFCM();
+        const token = await messaging.getToken({
+            vapidKey: FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: reg || undefined
+        });
+        if (!token) {
+            console.warn('Pas de token FCM');
+            return;
+        }
+        await db.collection('users').doc(userId).set({
+            fcmToken: token,
+            pushActif: true,
+            pushUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        console.log('Token FCM enregistré:', token.slice(0, 20) + '...');
+        // Messages reçus app au premier plan
+        try {
+            messaging.onMessage(function(payload) {
+                const title = (payload.notification && payload.notification.title) || 'Message';
+                const body = (payload.notification && payload.notification.body) || '';
+                if (document.visibilityState === 'visible') {
+                    if (typeof showTempNotification === 'function') showTempNotification('🔔 ' + title + ': ' + body);
+                } else if (Notification.permission === 'granted') {
+                    new Notification(title, { body: body, icon: '/icon-192.png' });
+                }
+            });
+        } catch (e) {}
+    } catch (e) {
+        console.error('Erreur abonnement FCM:', e);
+    }
 }
         // ========== SÉLECTION UTILISATEUR======= ===
      function selectUser(userKey) {
@@ -8183,11 +8232,9 @@ listenForCoeursSignals();
               if (!appEstInstallee()) {
                   showTempNotification("💡 Installe l'app sur l'écran d'accueil pour recevoir les notifications");
               } else {
-                  avecOneSignal((OneSignal) => {
-                      if (!OneSignal.Notifications.permission) {
-                          showTempNotification("💡 Paramètres → Notifications → Activer");
-                      }
-                  });
+                  if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                      showTempNotification("💡 Paramètres → Notifications → Activer");
+                  }
               }
           }, 2500);
               // ⚠️ DÉSACTIVÉ : ecouterChangementsCouleurs() (sans !important) écrasait
@@ -11381,6 +11428,39 @@ document.addEventListener('DOMContentLoaded', function() {
 // Au cas où le script s'exécute après DOMContentLoaded
 try { appliquerModeCouple(); } catch (e) {}
 
+
+
+function ouvrirPageCompte() {
+    const page = document.getElementById('compte-page');
+    if (!page) return;
+    page.style.display = 'flex';
+    // Remplir infos
+    try {
+        if (currentUser) {
+            const av = document.getElementById('compte-avatar');
+            const nom = document.getElementById('compte-nom');
+            const alias = document.getElementById('compte-alias');
+            const email = document.getElementById('compte-email');
+            if (nom) nom.textContent = currentUser.name || currentUser.full || '—';
+            if (alias) alias.textContent = '@' + (currentUser.full || currentUser.name || '').toLowerCase();
+            if (email) email.textContent = currentUser.email || '';
+            if (av) {
+                if (currentUser.photo) {
+                    av.style.backgroundImage = 'url("' + String(currentUser.photo).replace(/"/g, '') + '")';
+                    av.style.backgroundSize = 'cover';
+                    av.textContent = '';
+                } else {
+                    av.style.backgroundImage = '';
+                    av.textContent = (currentUser.name || '?').slice(0, 2).toUpperCase();
+                }
+            }
+        }
+    } catch (e) {}
+}
+function fermerPageCompte() {
+    const page = document.getElementById('compte-page');
+    if (page) page.style.display = 'none';
+}
 
 function openSettingsPage() {
     const settingsPage = document.getElementById('settings-page');
@@ -24166,4 +24246,4 @@ function fermerParametresIA() {
 </script>
 </body>   
   
-</html>
+</html> 
